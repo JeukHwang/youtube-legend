@@ -369,7 +369,7 @@ export const targetId: string[] = [
   "https://www.youtube.com/watch?v=a7qRuUAyqCg",
   "https://www.youtube.com/watch?v=7fBpBfsMYIc",
   "https://www.youtube.com/watch?v=gtIz1u8g1F0",
-].map(parseId);
+].map((url) => parseId(url)!.id) as string[];
 
 export const chromePath =
   "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";

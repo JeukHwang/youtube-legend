@@ -6,49 +6,39 @@ const units = new Map<string, number>([
   ["천", 1000],
 ]);
 
-export function parseViewString(str: string): number {
-  try {
-    const num = str.split("조회수")[1].trim().split("회")[0].trim();
-    for (let [unit, multiplier] of units) {
-      if (num.includes(unit)) {
-        return Math.round(parseFloat(num.split(unit)[0]) * multiplier);
-      }
-    }
-    return parseInt(num);
-  } catch (e) {
-    console.log("parseView", str);
-    throw e;
+export function parseViewString(str: string): number | null {
+  const matchedArray = str.match(/조회수 (.+)회/);
+  if (!matchedArray) return null;
+  const matchedStr = matchedArray[1];
+  const unit = units.get(matchedStr[matchedStr.length - 1]);
+  const number = parseFloat(unit ? matchedStr.slice(0, -1) : matchedStr);
+  return isNaN(number) ? null : Math.round((unit ?? 1) * number);
+}
+
+export function parseTimeString(str: string): number | null {
+  const splited = str.split(":").map((i) => parseInt(i, 10));
+  if (splited.some(isNaN)) return null;
+  if (splited.length === 2) {
+    const [minute, second] = splited;
+    return minute * 60 + second;
+  } else if (splited.length === 3) {
+    const [hour, minute, second] = splited;
+    return hour * 3600 + minute * 60 + second;
+  } else {
+    return null;
   }
 }
 
-export function parseTimeString(str: string): number {
-  try {
-    const splited = str.split(":");
-    if (splited.length === 2) {
-      const [minute, second] = str
-        .split(":")
-        .map((num) => parseInt(num.trim()));
-      return minute * 60 + second;
-    } else {
-      // must be 3
-      const [hour, minute, second] = str
-        .split(":")
-        .map((num) => parseInt(num.trim()));
-      return hour * 3600 + minute * 60 + second;
-    }
-  } catch (e) {
-    console.log("parseTime", str);
-    throw e;
-  }
-}
-
-export function parseId(str: string): string {
-  try {
-    return str.split("/watch?v=")[1];
-  } catch (e) {
-    console.log("parseId", str);
-    throw e;
-  }
+export function parseId(
+  str: string
+): { type: "video" | "shorts"; id: string } | null {
+  const matchedArrayForVideo = str.match(/\/watch\?v=(.+)/);
+  if (matchedArrayForVideo)
+    return { type: "video", id: matchedArrayForVideo[1] };
+  const matchedArrayForShort = str.match(/\/shorts\/(.+)/);
+  if (matchedArrayForShort)
+    return { type: "shorts", id: matchedArrayForShort[1] };
+  return null;
 }
 
 export function isTargetVideo(

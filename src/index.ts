@@ -1,8 +1,7 @@
-import { Video } from "@prisma/client";
 import { googleLogin } from "./api/oauth";
 import { getVideoInformation } from "./api/youtube";
 import { VideoInfo, browseToFindTarget } from "./util/browse";
-import prisma from "./util/db";
+import { addVideoIfPossible } from "./util/db";
 import { id2url } from "./util/util";
 
 async function login() {
@@ -10,21 +9,22 @@ async function login() {
   const videoInfo = await getVideoInformation(oauth2client, "wmqsk1vZSKw");
   console.log(videoInfo);
 }
-// main3();
 
 async function browseAndSave(): Promise<void> {
-  const videoInfos: VideoInfo[] = await browseToFindTarget(10);
-  console.log("Browse done", videoInfos.length);
-  const videos: Video[] = await prisma.$transaction(
-    videoInfos.map((videoInfo) => {
-      return prisma.video.create({ data: videoInfo });
-    })
-  );
-  console.log("Save done");
-  for (const video of videos) {
-    console.log(id2url(video.id), video.views, video.time);
+  const videoInfos: Map<string, VideoInfo> = await browseToFindTarget(0, 5);
+  console.log("Browse done", videoInfos.size);
+
+  let count = 0;
+  for (const [_, videoInfo] of videoInfos) {
+    try {
+      const isNew = await addVideoIfPossible(videoInfo);
+      if (isNew) count++;
+    } catch (e) {
+      console.error(e);
+      console.log(id2url(videoInfo.id), videoInfo.views, videoInfo.time);
+    }
   }
-  console.log("Finish");
+  console.log("Save done", count);
 }
 
 browseAndSave();

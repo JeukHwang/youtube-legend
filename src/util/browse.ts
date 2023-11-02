@@ -10,53 +10,38 @@ import {
 } from "./util";
 
 export type VideoInfo = Pick<Video, "id" | "time" | "views">;
-
+const viewSelector = ".inline-metadata-item.style-scope.ytd-video-meta-block";
+const timeSelector = "#time-status";
+const idSelector = "a#thumbnail";
 async function getVideoInfo(
   video: ElementHandle<HTMLDivElement>
 ): Promise<VideoInfo | null> {
-  const [views, time, id]: [number | null, number | null, string | null] =
-    await Promise.all([
-      new Promise<number | null>(async (resolve) => {
-        const el = (await video.$(
-          ".inline-metadata-item.style-scope.ytd-video-meta-block"
-        )) as ElementHandle<HTMLSpanElement> | null;
-        if (!el) {
-          resolve(null);
-          return;
-        }
-        const str: string | undefined = await el.evaluate((el) =>
-          el.textContent?.trim()
-        );
-        resolve(str ? parseViewString(str) : null);
-      }),
-      new Promise<number | null>(async (resolve) => {
-        const el = (await video.$(
-          "#time-status"
-        )) as ElementHandle<HTMLDivElement> | null;
-        if (!el) {
-          resolve(null);
-          return;
-        }
-        const str: string | undefined = await el.evaluate((el) =>
-          el.textContent?.trim()
-        );
-        resolve(str ? parseTimeString(str) : null);
-      }),
-      new Promise<string | null>(async (resolve) => {
-        const el = (await video.$(
-          "a#thumbnail"
-        )) as ElementHandle<HTMLAnchorElement> | null;
-        if (!el) {
-          resolve(null);
-          return;
-        }
-        const str: string | null = await el.evaluate((el) =>
-          el.getAttribute("id")
-        );
-        resolve(str ? parseId(str) : null);
-      }),
-    ]);
-  return views && time && id ? { views, time, id } : null;
+  //   #time-status sometime cause timeout error since it is not loaded
+  //   await Promise.all([
+  //     video.waitForSelector(viewSelector),
+  //     video.waitForSelector(timeSelector),
+  //     video.waitForSelector(idSelector),
+  //   ]);
+  const info = (
+    await Promise.allSettled([
+      video.$eval(viewSelector, (el) => el.textContent?.trim()),
+      video.$eval(timeSelector, (el) => el.textContent?.trim()),
+      video.$eval(idSelector, (el) => el.getAttribute("href")),
+    ])
+  ).map((i) =>
+    i.status === "fulfilled" && i.value !== null ? i.value : null
+  ) as [string | null, string | null, string | null];
+
+  const views = info[0] ? parseViewString(info[0]) : null;
+  const time = info[1] ? parseTimeString(info[1]) : null;
+  const id = info[2] ? parseId(info[2]) : null;
+  if (views && time && id) {
+    if (id.type === "shorts") return null;
+    return { views, time, id: id.id };
+  } else {
+    console.error("getVideoInfo", info, views, time, id);
+    return null;
+  }
 }
 
 async function getVideosInPage(page: Page): Promise<VideoInfo[]> {
@@ -73,12 +58,13 @@ async function getVideosInPage(page: Page): Promise<VideoInfo[]> {
 
 async function browseDFS(
   page: Page,
+  maxDepth: number,
   id: string,
-  found: VideoInfo[] = [],
+  found: Map<string, VideoInfo> = new Map(),
   visit: Set<string> = new Set(),
   depth = 0
 ): Promise<void> {
-  if (visit.has(id) || depth > 5) return;
+  if (visit.has(id) || depth > maxDepth) return;
   visit.add(id);
 
   await page.goto(id2url(id), { waitUntil: "networkidle2" });
@@ -86,23 +72,25 @@ async function browseDFS(
   console.log("browse", depth, id2url(id), videos.length);
 
   for (const video of videos) {
-    if (isTargetVideo(video, found.length >= 4 ? 10_0000 : 1000, 60)) {
-      if (isTargetVideo(video, 10000000, 60)) {
-        found.push(video);
+    if (isTargetVideo(video, found.size >= 4 ? 10_0000 : 1000, 60)) {
+      if (isTargetVideo(video, 1000_0000, 60)) {
+        found.set(video.id, video);
       }
-      await browseDFS(page, video.id, found, visit, depth + 1);
+      await browseDFS(page, maxDepth, video.id, found, visit, depth + 1);
     }
   }
 }
 
 export async function browseToFindTarget(
-  init: number = 10
-): Promise<VideoInfo[]> {
+  init: number = 0,
+  maxDepth: number = 4
+): Promise<Map<string, VideoInfo>> {
   const browser = await puppeteer.launch({
     headless: "new",
     executablePath: chromePath,
   });
   const page = await browser.newPage();
+  await page.setExtraHTTPHeaders({ "Accept-Language": "ko" });
   console.log("Init");
 
   for (let i = 0; i < init; i++) {
@@ -111,9 +99,9 @@ export async function browseToFindTarget(
   }
   console.log("Iterate target id");
 
-  const found: VideoInfo[] = [];
+  const found: Map<string, VideoInfo> = new Map();
   const visit = new Set<string>();
-  await browseDFS(page, targetId[0], found, visit);
+  await browseDFS(page, maxDepth, targetId[0], found, visit);
   console.log("Finish browse");
 
   await browser.close();
