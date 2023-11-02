@@ -1,0 +1,18 @@
+{
+    "name": "youtube-legend",
+    "private": true,
+    "version": "0.0.0",
+    "scripts": {
+        "start": "ts-node src/index.ts"
+    },
+    "dependencies": {
+        "@prisma/client": "5.5.0",
+        "@tsconfig/recommended": "^1.0.3",
+        "googleapis": "^128.0.0",
+        "prisma": "^5.5.2",
+        "puppeteer": "^21.4.1",
+        "puppeteer-core": "^21.4.1",
+        "readline-sync": "^1.4.10",
+        "ts-node": "^10.9.1"
+    }
+}

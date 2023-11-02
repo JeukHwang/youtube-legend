@@ -1,2 +1,2 @@
-# youtube-legend
+# YouTube Legend
 Collection of YouTube legend
