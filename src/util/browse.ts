@@ -72,7 +72,13 @@ async function browseDFS(
   console.log("browse", depth, id2url(id), videos.length);
 
   for (const video of videos) {
-    if (isTargetVideo(video, found.size >= 4 ? 10_0000 : 1000, 60)) {
+    if (
+      isTargetVideo(
+        video,
+        found.size >= 10 ? 100_0000 : found.size >= 4 ? 10_0000 : 1000,
+        60
+      )
+    ) {
       if (isTargetVideo(video, 1000_0000, 60)) {
         found.set(video.id, video);
       }
@@ -82,7 +88,8 @@ async function browseDFS(
 }
 
 export async function browseToFindTarget(
-  init: number = 0,
+  initId: string,
+  initIdNum: number = 0,
   maxDepth: number = 4
 ): Promise<Map<string, VideoInfo>> {
   const browser = await puppeteer.launch({
@@ -93,7 +100,7 @@ export async function browseToFindTarget(
   await page.setExtraHTTPHeaders({ "Accept-Language": "ko" });
   console.log("Init");
 
-  for (let i = 0; i < init; i++) {
+  for (let i = 0; i < initIdNum; i++) {
     await page.goto(id2url(targetId[i]), { waitUntil: "networkidle2" });
     // await page.waitForTimeout(1000);
   }
@@ -101,7 +108,7 @@ export async function browseToFindTarget(
 
   const found: Map<string, VideoInfo> = new Map();
   const visit = new Set<string>();
-  await browseDFS(page, maxDepth, targetId[0], found, visit);
+  await browseDFS(page, maxDepth, initId, found, visit);
   console.log("Finish browse");
 
   await browser.close();
